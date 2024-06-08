@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Translator</title>
+<style>
+    body {
+        font-family: Arial, sans-serif;
+        background-color: #f0f0f0;
+    }
+    #translator {
+        margin: 50px auto;
+        width: 400px;
+        background-color: #fff;
+        border-radius: 5px;
+        padding: 20px;
+        box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+    }
+    textarea {
+        width: calc(100% - 40px);
+        height: 100px;
+        margin-bottom: 10px;
+        padding: 10px;
+        border: 1px solid #ccc;
+        border-radius: 3px;
+        resize: none;
+        font-size: 14px;
+    }
+    button {
+        padding: 10px 20px;
+        background-color: #007bff;
+        color: #fff;
+        border: none;
+        border-radius: 3px;
+        cursor: pointer;
+        margin-right: 5px;
+        margin-bottom: 10px;
+    }
+    button:hover {
+        background-color: #0056b3;
+    }
+    #outputText {
+        width: calc(100% - 40px);
+        height: 100px;
+        margin-bottom: 10px;
+        padding: 10px;
+        border: 1px solid #ccc;
+        border-radius: 3px;
+        resize: none;
+        font-size: 14px;
+        background-color: #f9f9f9;
+    }
+    #videoContainer {
+        margin-bottom: 10px;
+        text-align: center;
+        display: none; /* Initially hidden */
+    }
+    #videoElement {
+        width: 100%;
+        height: auto;
+        border: 1px solid #ccc;
+        border-radius: 3px;
+    }
+    #loadingSpinner {
+        display: none;
+        margin: 10px auto;
+        border: 6px solid #f3f3f3;
+        border-radius: 50%;
+        border-top: 6px solid #007bff;
+        width: 40px;
+        height: 40px;
+        animation: spin 1s linear infinite;
+    }
+    @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+    }
+</style>
+</head>
+<body>
+
+<div id="translator">
+    <div id="videoContainer">
+        <video id="videoElement" autoplay></video>
+        <div id="loadingSpinner"></div>
+        <button onclick="captureFrame()">Capture Text</button>
+        <button onclick="closeCamera()">Close Camera</button>
+    </div>
+    <button id="openCameraButton" onclick="startCamera()">Open Camera</button>
+    <button onclick="document.getElementById('imageInput').click()">Choose Image from Storage</button>
+    <input type="file" accept="image/*" id="imageInput" style="display: none;" onchange="processImage(event)">
+    <br>
+    <textarea id="inputText" placeholder="Enter text..."></textarea>
+    <br>
+    <button onclick="translateToEnglish()">Translate to English</button>
+    <button onclick="translateToPersian()">Translate to Persian</button>
+    <button onclick="translateToPashto()">Translate to Pashto</button>
+    <button onclick="startSpeechRecognition()">Speak</button>
+    <button onclick="pronounceText()">Pronounce</button>
+    <textarea id="outputText" placeholder="Translation will appear here..." readonly></textarea>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@2.1.4/dist/tesseract.min.js"></script>
+<script>
+    async function translateText(text, targetLanguage) {
+        try {
+            const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=${targetLanguage}&dt=t&q=${encodeURI(text)}`;
+            const response = await fetch(url);
+            const data = await response.json();
+            return data[0][0][0];
+        } catch (error) {
+            return "Error in translation.";
+        }
+    }
+
+    async function translateToEnglish() {
+        const inputText = document.getElementById('inputText').value;
+        const translation = await translateText(inputText, 'en');
+        document.getElementById('outputText').value = translation;
+    }
+
+    async function translateToPersian() {
+        const inputText = document.getElementById('inputText').value;
+        const translation = await translateText(inputText, 'fa');
+        document.getElementById('outputText').value = translation;
+    }
+
+    async function translateToPashto() {
+        const inputText = document.getElementById('inputText').value;
+        const translation = await translateText(inputText, 'ps');
+        document.getElementById('outputText').value = translation;
+    }
+
+    function startSpeechRecognition() {
+        const recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
+        recognition.lang = 'en-US';
+        recognition.start();
+
+        recognition.onresult = (event) => {
+            const transcript = event.results[0][0].transcript;
+            document.getElementById('inputText').value = transcript;
+        };
+
+        recognition.onerror = (event) => {
+            console.error('Speech recognition error', event);
+        };
+    }
+
+    function pronounceText() {
+        const text = document.getElementById('inputText').value;
+        const utterance = new SpeechSynthesisUtterance(text);
+        window.speechSynthesis.speak(utterance);
+    }
+
+    let stream;
+
+    function startCamera() {
+        const videoContainer = document.getElementById('videoContainer');
+        const openCameraButton = document.getElementById('openCameraButton');
+        videoContainer.style.display = 'block';
+        openCameraButton.style.display = 'none';
+        if (navigator.mediaDevices.getUserMedia) {
+            navigator.mediaDevices.getUserMedia({ video: true })
+                .then((mediaStream) => {
+                    stream = mediaStream;
+                    document.getElementById('videoElement').srcObject = stream;
+                })
+                .catch((error) => {
+                    console.error('Error accessing camera', error);
+                });
+        }
+    }
+
+    function closeCamera() {
+        const videoContainer = document.getElementById('videoContainer');
+        const openCameraButton = document.getElementById('openCameraButton');
+        videoContainer.style.display = 'none';
+        openCameraButton.style.display = 'block';
+        if (stream) {
+            const tracks = stream.getTracks();
+            tracks.forEach(track => track.stop());
+        }
+    }
+
+    function captureFrame() {
+        const videoElement = document.getElementById('videoElement');
+        const canvas = document.createElement('canvas');
+        canvas.width = videoElement.videoWidth;
+        canvas.height = videoElement.videoHeight;
+        const context = canvas.getContext('2d');
+        context.drawImage(videoElement, 0, 0, canvas.width, canvas.height);
+
+        const spinner = document.getElementById('loadingSpinner');
+        spinner.style.display = 'block';
+
+        Tesseract.recognize(canvas.toDataURL('image/png'), 'eng')
+            .then(({ data: { text } }) => {
+                document.getElementById('inputText').value = text;
+            })
+            .finally(() => {
+                spinner.style.display = 'none';
+            })
+            .catch((error) => {
+                console.error('OCR error', error);
+                spinner.style.display = 'none';
+            });
+    }
+
+    function processImage(event) {
+        const file = event.target.files[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const img = new Image();
+                img.onload = function() {
+                    const canvas = document.createElement('canvas');
+                    canvas.width = img.width;
+                    canvas.height = img.height;
+                    const context = canvas.getContext('2d');
+                    context.drawImage(img, 0, 0, img.width, img.height);
+
+                    const spinner = document.getElementById('loadingSpinner');
+                    spinner.style.display = 'block';
+
+                    Tesseract.recognize(canvas.toDataURL('image/png'), 'eng')
+                        .then(({ data: { text } }) => {
+                            document.getElementById('inputText').value = text;
+                        })
+                        .finally(() => {
+                            spinner.style.display = 'none';
+                        })
+                        .catch((error) => {
+                            console.error('OCR error', error);
+                            spinner.style.display = 'none';
+                        });
+                };
+                img.src = e.target.result;
+            };
+            reader.readAsDataURL(file);
+        }
+    }
+</script>
+
+</body>
+</html>
